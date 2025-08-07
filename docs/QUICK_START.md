@@ -2,123 +2,264 @@
 
 This guide shows you how to quickly add hover documentation and completion for Alloy files in popular editors.
 
-## 🚀 VS Code Extension
+## 🚀 Zed Extension
 
-### 1. Basic Setup
-Create a VS Code extension with these files:
+### 1. Create Extension Structure
+Create a Zed extension with these files in your extensions directory (`~/.config/zed/extensions/alloy/`):
 
-**package.json**
-```json
-{
-  "name": "alloy-language-support",
-  "displayName": "Alloy Language Support",
-  "version": "0.1.0",
-  "engines": { "vscode": "^1.60.0" },
-  "categories": ["Programming Languages"],
-  "activationEvents": ["onLanguage:alloy"],
-  "main": "./out/extension.js",
-  "contributes": {
-    "languages": [{
-      "id": "alloy",
-      "aliases": ["Alloy", "alloy"],
-      "extensions": [".alloy"],
-      "configuration": "./language-configuration.json"
-    }],
-    "grammars": [{
-      "language": "alloy",
-      "scopeName": "source.alloy",
-      "path": "./syntaxes/alloy.tmGrammar.json"
-    }]
-  },
-  "dependencies": {
-    "tree-sitter": "^0.20.0",
-    "tree-sitter-alloy": "file:../"
-  }
-}
+**extension.toml**
+```toml
+id = "alloy"
+name = "Alloy Language Support"
+description = "Grafana Alloy configuration language support"
+version = "0.1.0"
+schema_version = 1
+authors = ["Your Name <your.email@example.com>"]
+repository = "https://github.com/your-username/zed-alloy"
+
+[language_servers.alloy-lsp]
+name = "alloy-lsp"
+language = "alloy"
+
+[grammars.alloy]
+repository = "https://github.com/mattsre/tree-sitter-alloy"
+commit = "main"
+
+[languages.alloy]
+name = "Alloy"
+grammar = "alloy"
+scope = "source.alloy"
+injection_regex = "alloy"
+file_types = ["alloy"]
+comment_tokens = ["//"]
+block_comment_tokens = [{ start = "/*", end = "*/" }]
+language_servers = ["alloy-lsp"]
+auto_indent_using_last_non_empty_line = true
 ```
 
-**src/extension.ts**
-```typescript
-import * as vscode from 'vscode';
-import * as Parser from 'tree-sitter';
-import * as Alloy from 'tree-sitter-alloy';
-import { AlloyDocumentationProvider } from '../docs/lsp_integration.js';
+**languages/alloy/brackets.scm**
+```scheme
+[
+  "("
+  ")"
+  "["
+  "]"
+  "{"
+  "}"
+] @bracket
+```
 
-export function activate(context: vscode.ExtensionContext) {
-    const parser = new Parser();
-    parser.setLanguage(Alloy);
-    const docProvider = new AlloyDocumentationProvider();
+**languages/alloy/highlights.scm**
+```scheme
+; Keywords
+"true" @boolean
+"false" @boolean
+"null" @constant.builtin
 
-    // Hover provider
-    const hoverProvider = vscode.languages.registerHoverProvider('alloy', {
-        provideHover(document, position) {
-            const tree = parser.parse(document.getText());
-            const node = tree.rootNode.descendantForPosition({
-                row: position.line,
-                column: position.character
-            });
+; Strings
+(string) @string
+(string (escape_sequence) @escape)
 
-            const context = buildContext(node);
-            const docs = docProvider.getHoverDocumentation(node.type, node.text, context);
-            
-            if (docs) {
-                return new vscode.Hover(new vscode.MarkdownString(docs.value));
-            }
-            return null;
-        }
-    });
+; Numbers
+(number) @number
 
-    // Completion provider
-    const completionProvider = vscode.languages.registerCompletionItemProvider('alloy', {
-        provideCompletionItems(document, position) {
-            const text = document.getText();
-            const offset = document.offsetAt(position);
-            const context = text.substring(Math.max(0, offset - 50), offset);
-            
-            const tree = parser.parse(text);
-            const node = tree.rootNode.descendantForPosition({
-                row: position.line,
-                column: position.character
-            });
-            
-            const scope = buildScope(node);
-            const items = docProvider.getCompletionItems(context, scope);
-            
-            return items.map(item => {
-                const completion = new vscode.CompletionItem(item.label, item.kind);
-                completion.detail = item.detail;
-                completion.documentation = new vscode.MarkdownString(item.documentation.value);
-                if (item.insertText) {
-                    completion.insertText = new vscode.SnippetString(item.insertText);
-                }
-                return completion;
-            });
-        }
-    });
+; Comments
+(comment) @comment
 
-    context.subscriptions.push(hoverProvider, completionProvider);
+; Identifiers
+(identifier) @variable
+
+; Functions
+(function name: (identifier) @function)
+
+; Block names (components)
+(block name: (identifier) @type)
+
+; Attribute names
+(attribute name: (identifier) @property)
+(attribute name: (string) @property)
+
+; Operators
+[
+  "="
+  "+"
+  "-"
+  "*"
+  "/"
+  "%"
+  "=="
+  "!="
+  "<"
+  "<="
+  ">"
+  ">="
+  "&&"
+  "||"
+  "!"
+] @operator
+
+; Punctuation
+[
+  "."
+  ","
+  ";"
+  ":"
+] @punctuation.delimiter
+
+[
+  "("
+  ")"
+  "["
+  "]"
+  "{"
+  "}"
+] @punctuation.bracket
+```
+
+**languages/alloy/outline.scm**
+```scheme
+; Top-level blocks
+(block
+  name: (identifier) @context
+  label: (string)? @name
+) @item
+
+; Attributes as outline items in blocks
+(block 
+  (attribute 
+    name: (identifier) @name
+  ) @item
+)
+```
+
+### 2. Optional: Language Server
+For advanced features like hover documentation and completions, create a simple language server:
+
+**src/main.rs** (if using Rust)
+```rust
+use serde_json::{json, Value};
+use std::collections::HashMap;
+use tower_lsp::jsonrpc::Result;
+use tower_lsp::lsp_types::*;
+use tower_lsp::{Client, LanguageServer, LspService, Server};
+
+#[derive(Debug)]
+struct AlloyLanguageServer {
+    client: Client,
+    docs: HashMap<String, ComponentDoc>,
 }
 
-function buildContext(node) {
-    // Implementation similar to LSP integration example
-    const context = {};
-    let current = node.parent;
-    while (current) {
-        if (current.type === 'block') {
-            const nameNode = current.namedChild(0);
-            if (nameNode) context.parentBlock = nameNode.text;
-            break;
-        }
-        current = current.parent;
+#[derive(Debug, Clone)]
+struct ComponentDoc {
+    description: String,
+    category: String,
+}
+
+impl AlloyLanguageServer {
+    fn new(client: Client) -> Self {
+        let mut docs = HashMap::new();
+        
+        // Load basic documentation
+        docs.insert("loki.write".to_string(), ComponentDoc {
+            description: "Receives log entries and forwards them to Loki".to_string(),
+            category: "loki".to_string(),
+        });
+        
+        docs.insert("loki.source.file".to_string(), ComponentDoc {
+            description: "Reads log entries from files".to_string(),
+            category: "loki".to_string(),
+        });
+
+        Self { client, docs }
     }
-    return context;
 }
 
-function buildScope(node) {
-    // Implementation similar to LSP integration example
-    return { insideBlock: false, currentBlock: null };
+#[tower_lsp::async_trait]
+impl LanguageServer for AlloyLanguageServer {
+    async fn initialize(&self, _: InitializeParams) -> Result<InitializeResult> {
+        Ok(InitializeResult {
+            capabilities: ServerCapabilities {
+                hover_provider: Some(HoverProviderCapability::Simple(true)),
+                completion_provider: Some(CompletionOptions {
+                    resolve_provider: Some(false),
+                    trigger_characters: Some(vec![".".to_string(), " ".to_string()]),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            },
+            ..Default::default()
+        })
+    }
+
+    async fn initialized(&self, _: InitializedParams) {
+        self.client
+            .log_message(MessageType::INFO, "Alloy Language Server initialized!")
+            .await;
+    }
+
+    async fn hover(&self, params: HoverParams) -> Result<Option<Hover>> {
+        // Simple hover implementation
+        let contents = HoverContents::Markup(MarkupContent {
+            kind: MarkupKind::Markdown,
+            value: "Alloy configuration element".to_string(),
+        });
+
+        Ok(Some(Hover {
+            contents,
+            range: None,
+        }))
+    }
+
+    async fn completion(&self, _: CompletionParams) -> Result<Option<CompletionResponse>> {
+        let items = vec![
+            CompletionItem {
+                label: "loki.write".to_string(),
+                kind: Some(CompletionItemKind::CLASS),
+                detail: Some("Loki write component".to_string()),
+                insert_text: Some("loki.write \"${1:label}\" {\n\t$0\n}".to_string()),
+                insert_text_format: Some(InsertTextFormat::SNIPPET),
+                ..Default::default()
+            },
+            CompletionItem {
+                label: "loki.source.file".to_string(),
+                kind: Some(CompletionItemKind::CLASS),
+                detail: Some("Loki file source".to_string()),
+                insert_text: Some("loki.source.file \"${1:label}\" {\n\t$0\n}".to_string()),
+                insert_text_format: Some(InsertTextFormat::SNIPPET),
+                ..Default::default()
+            },
+        ];
+
+        Ok(Some(CompletionResponse::Array(items)))
+    }
+
+    async fn shutdown(&self) -> Result<()> {
+        Ok(())
+    }
+}
+
+#[tokio::main]
+async fn main() {
+    let stdin = tokio::io::stdin();
+    let stdout = tokio::io::stdout();
+
+    let (service, socket) = LspService::new(|client| AlloyLanguageServer::new(client));
+    Server::new(stdin, stdout, socket).serve(service).await;
 }
 ```
+
+### 3. Installation
+
+#### Quick Installation (Recommended)
+Use the provided installation script:
+```bash
+./install-zed-extension.sh
+```
+
+#### Manual Installation
+1. Clone this repository to `~/.config/zed/extensions/alloy/`
+2. Restart Zed
+3. Open an `.alloy` file to activate the extension
 
 ## 📝 Neovim with Lua
 

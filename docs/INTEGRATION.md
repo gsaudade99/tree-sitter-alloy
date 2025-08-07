@@ -13,50 +13,109 @@ The documentation system consists of:
 
 ## Editor Integration
 
-### VS Code Extension
+### Zed Extension
 
-To integrate with a VS Code extension, use the Tree-sitter queries with the documentation provider:
+To create a Zed extension for Alloy, create an extension directory structure with the following files:
 
-```typescript
-import { AlloyDocumentationProvider } from './docs/lsp_integration.js';
-import Parser from 'tree-sitter';
-import Alloy from 'tree-sitter-alloy';
+**extension.toml**
+```toml
+id = "alloy"
+name = "Alloy Language Support"
+description = "Grafana Alloy configuration language support"
+version = "0.1.0"
+schema_version = 1
+authors = ["Your Name <your.email@example.com>"]
+repository = "https://github.com/your-username/zed-alloy"
 
-class AlloyLanguageServer {
-  constructor() {
-    this.parser = new Parser();
-    this.parser.setLanguage(Alloy);
-    this.docProvider = new AlloyDocumentationProvider();
-  }
+[language_servers.alloy-lsp]
+name = "alloy-lsp"
+language = "alloy"
 
-  provideHover(document, position) {
-    const tree = this.parser.parse(document.getText());
-    const node = tree.rootNode.descendantForPosition(position);
-    
-    const context = this.getNodeContext(node);
-    const docs = this.docProvider.getHoverDocumentation(
-      node.type,
-      node.text,
-      context
-    );
-    
-    if (docs) {
-      return new vscode.Hover(docs.value);
+[grammars.alloy]
+repository = "https://github.com/mattsre/tree-sitter-alloy"
+commit = "main"
+
+[languages.alloy]
+name = "Alloy"
+grammar = "alloy"
+scope = "source.alloy"
+injection_regex = "alloy"
+file_types = ["alloy"]
+comment_tokens = ["//"]
+block_comment_tokens = [{ start = "/*", end = "*/" }]
+language_servers = ["alloy-lsp"]
+auto_indent_using_last_non_empty_line = true
+```
+
+**languages/alloy/highlights.scm**
+```scheme
+; Use the Tree-sitter queries from this repository
+; Copy from queries/highlights.scm
+
+; Keywords
+"true" @boolean
+"false" @boolean
+"null" @constant.builtin
+
+; Strings
+(string) @string
+
+; Numbers
+(number) @number
+
+; Comments
+(comment) @comment
+
+; Identifiers and functions
+(identifier) @variable
+(function name: (identifier) @function)
+
+; Block names (components)
+(block name: (identifier) @type)
+
+; Attribute names
+(attribute name: (identifier) @property)
+```
+
+For advanced features like hover documentation and completions, you can create a language server that integrates with the AlloyDocumentationProvider:
+
+```rust
+use tower_lsp::{Client, LanguageServer, LspService, Server};
+use tower_lsp::lsp_types::*;
+
+struct AlloyLanguageServer {
+    client: Client,
+}
+
+#[tower_lsp::async_trait]
+impl LanguageServer for AlloyLanguageServer {
+    async fn hover(&self, params: HoverParams) -> tower_lsp::jsonrpc::Result<Option<Hover>> {
+        // Parse the document with tree-sitter-alloy
+        // Use documentation queries to provide context-aware hover
+        // Return formatted documentation from components.json
+        
+        let contents = HoverContents::Markup(MarkupContent {
+            kind: MarkupKind::Markdown,
+            value: "Component documentation from components.json".to_string(),
+        });
+        
+        Ok(Some(Hover { contents, range: None }))
     }
     
-    return null;
-  }
-
-  provideCompletionItems(document, position) {
-    const tree = this.parser.parse(document.getText());
-    const node = tree.rootNode.descendantForPosition(position);
-    
-    const context = this.getCompletionContext(document, position);
-    const scope = this.getCurrentScope(node);
-    
-    const items = this.docProvider.getCompletionItems(context, scope);
-    return items.map(item => new vscode.CompletionItem(item.label, item.kind));
-  }
+    async fn completion(&self, _: CompletionParams) -> tower_lsp::jsonrpc::Result<Option<CompletionResponse>> {
+        // Provide completions based on context and available components
+        let items = vec![
+            CompletionItem {
+                label: "loki.write".to_string(),
+                kind: Some(CompletionItemKind::CLASS),
+                insert_text: Some("loki.write \"${1:label}\" {\n\t$0\n}".to_string()),
+                insert_text_format: Some(InsertTextFormat::SNIPPET),
+                ..Default::default()
+            },
+        ];
+        
+        Ok(Some(CompletionResponse::Array(items)))
+    }
 }
 ```
 

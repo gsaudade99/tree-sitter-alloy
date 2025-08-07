@@ -25,6 +25,31 @@ This grammar includes comprehensive documentation support for hover and completi
 
 See the [Integration Guide](docs/INTEGRATION.md) for details on how to integrate documentation with your editor or language server.
 
+## Editor Support
+
+### Zed Editor
+
+A complete Zed extension is provided in the `zed-extension/` directory with:
+- Syntax highlighting
+- Bracket matching  
+- Code outline
+- Auto-indentation
+
+To install, copy the extension directory to your Zed extensions folder:
+```bash
+cp -r zed-extension ~/.config/zed/extensions/alloy
+```
+
+See [zed-extension/README.md](zed-extension/README.md) for detailed setup instructions.
+
+### Other Editors
+
+See the [Quick Start Guide](docs/QUICK_START.md) for setup instructions with:
+- Neovim with nvim-treesitter
+- Emacs with tree-sitter
+- Sublime Text
+- Any editor via Language Server Protocol (LSP)
+
 ## Example
 
 It can parse the following config which is on the Alloy configuration syntax docs page:
