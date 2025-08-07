@@ -2,8 +2,28 @@
 
 A grammar for the Grafana Alloy configuration language, supports all types and most commom uses of the language.
 
+## Features
+
+- **Syntax Highlighting**: Full syntax highlighting for Alloy configuration files
+- **Inline Documentation**: Hover documentation and code completion for Alloy components
+- **Component Recognition**: Identifies and documents all major Alloy components (Loki, Prometheus, OpenTelemetry, etc.)
+- **Attribute Completion**: Context-aware attribute suggestions with type information
+- **Function Documentation**: Built-in function help with parameter descriptions
+- **Reference Resolution**: Smart completion for component references and exports
+
 ## Showcase
 ![449459055-f0671a74-82ec-4466-905b-1e3221597d59](https://github.com/user-attachments/assets/355c77f2-9145-4401-b733-a065280fcc10)
+
+## Documentation Support
+
+This grammar includes comprehensive documentation support for hover and completion features. The documentation system includes:
+
+- **Component Documentation**: Detailed descriptions for all Alloy components like `loki.source.file`, `prometheus.scrape`, etc.
+- **Attribute Documentation**: Type information and descriptions for component attributes
+- **Function Documentation**: Help for built-in functions like `env()`, `concat()`, `format()`
+- **Context-Aware Completions**: Smart suggestions based on current editing context
+
+See the [Integration Guide](docs/INTEGRATION.md) for details on how to integrate documentation with your editor or language server.
 
 ## Example
 

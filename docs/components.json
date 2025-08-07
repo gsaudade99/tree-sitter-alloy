@@ -1,0 +1,340 @@
+{
+  "components": {
+    "local.file_match": {
+      "description": "Discovers files on the local filesystem using glob patterns and makes them available as targets for other components.",
+      "category": "Local",
+      "attributes": {
+        "path_targets": {
+          "type": "array",
+          "description": "List of targets with __path__ labels pointing to files to watch",
+          "required": true
+        },
+        "sync_period": {
+          "type": "duration",
+          "description": "How often to sync filesystem and targets",
+          "default": "10s"
+        }
+      }
+    },
+    "loki.source.file": {
+      "description": "Reads log files from the local filesystem and forwards them to other Loki components.",
+      "category": "Loki Sources",
+      "attributes": {
+        "targets": {
+          "type": "array",
+          "description": "List of targets to read files from",
+          "required": true
+        },
+        "forward_to": {
+          "type": "array",
+          "description": "List of receivers to send log entries to",
+          "required": true
+        },
+        "tail_from_end": {
+          "type": "bool",
+          "description": "Whether to tail from the end of files on startup",
+          "default": "false"
+        },
+        "encoding": {
+          "type": "string",
+          "description": "Encoding to use when reading files",
+          "default": "UTF-8"
+        }
+      }
+    },
+    "loki.write": {
+      "description": "Receives log entries from other Loki components and sends them over the network using the Loki logproto format.",
+      "category": "Loki Exports",
+      "attributes": {
+        "endpoint": {
+          "type": "block",
+          "description": "Configures a Loki server to send logs to",
+          "required": true
+        }
+      },
+      "blocks": {
+        "endpoint": {
+          "description": "Configures connection to a Loki server",
+          "attributes": {
+            "url": {
+              "type": "string",
+              "description": "URL of the Loki server to send logs to",
+              "required": true
+            },
+            "tenant_id": {
+              "type": "string",
+              "description": "Tenant ID to use when sending logs"
+            },
+            "headers": {
+              "type": "map",
+              "description": "Additional headers to send with requests"
+            }
+          }
+        }
+      }
+    },
+    "loki.process": {
+      "description": "Receives log entries from other Loki components, applies one or more processing stages, and forwards results to other Loki components.",
+      "category": "Loki Processing",
+      "attributes": {
+        "forward_to": {
+          "type": "array",
+          "description": "List of receivers to send processed log entries to",
+          "required": true
+        }
+      },
+      "blocks": {
+        "stage.logfmt": {
+          "description": "Parses logfmt-formatted log lines and extracts fields",
+          "attributes": {
+            "mapping": {
+              "type": "map",
+              "description": "Maps extracted fields to new names"
+            },
+            "source": {
+              "type": "string",
+              "description": "Source field to parse",
+              "default": "__entry__"
+            }
+          }
+        },
+        "stage.json": {
+          "description": "Parses JSON-formatted log lines and extracts fields",
+          "attributes": {
+            "expressions": {
+              "type": "map",
+              "description": "JSONPath expressions to extract fields"
+            },
+            "source": {
+              "type": "string", 
+              "description": "Source field to parse",
+              "default": "__entry__"
+            }
+          }
+        },
+        "stage.labels": {
+          "description": "Updates the label set for log entries",
+          "attributes": {
+            "values": {
+              "type": "map",
+              "description": "Maps extracted fields to label names",
+              "required": true
+            }
+          }
+        },
+        "stage.regex": {
+          "description": "Parses log lines using regular expressions",
+          "attributes": {
+            "expression": {
+              "type": "string",
+              "description": "Regular expression with named capture groups",
+              "required": true
+            },
+            "source": {
+              "type": "string",
+              "description": "Source field to parse",
+              "default": "__entry__"
+            }
+          }
+        },
+        "stage.drop": {
+          "description": "Conditionally drops log entries",
+          "attributes": {
+            "expression": {
+              "type": "string",
+              "description": "LogQL expression to evaluate"
+            },
+            "source": {
+              "type": "string",
+              "description": "Source field to evaluate"
+            }
+          }
+        }
+      }
+    },
+    "prometheus.scrape": {
+      "description": "Configures Prometheus-compatible scraping of HTTP endpoints and forwards metrics to other Prometheus components.",
+      "category": "Prometheus Sources",
+      "attributes": {
+        "targets": {
+          "type": "array",
+          "description": "List of targets to scrape",
+          "required": true
+        },
+        "forward_to": {
+          "type": "array",
+          "description": "List of receivers to send scraped metrics to",
+          "required": true
+        },
+        "scrape_interval": {
+          "type": "duration",
+          "description": "How frequently to scrape targets",
+          "default": "1m"
+        },
+        "scrape_timeout": {
+          "type": "duration", 
+          "description": "Timeout for each scrape request",
+          "default": "10s"
+        },
+        "job_name": {
+          "type": "string",
+          "description": "Job name to add to scraped metrics"
+        },
+        "metrics_path": {
+          "type": "string",
+          "description": "HTTP path to scrape metrics from",
+          "default": "/metrics"
+        }
+      }
+    },
+    "prometheus.remote_write": {
+      "description": "Receives metrics from other Prometheus components and sends them over the network via the Prometheus remote_write protocol.",
+      "category": "Prometheus Exports",
+      "attributes": {
+        "endpoint": {
+          "type": "block",
+          "description": "Configures a Prometheus remote_write endpoint",
+          "required": true
+        }
+      },
+      "blocks": {
+        "endpoint": {
+          "description": "Configures connection to a Prometheus remote_write endpoint",
+          "attributes": {
+            "url": {
+              "type": "string",
+              "description": "URL of the remote_write endpoint",
+              "required": true
+            },
+            "headers": {
+              "type": "map",
+              "description": "Additional headers to send with requests"
+            },
+            "write_relabel_config": {
+              "type": "block",
+              "description": "Relabeling rules to apply before writing"
+            }
+          }
+        }
+      }
+    },
+    "discovery.kubernetes": {
+      "description": "Discovers scrape targets from Kubernetes API server and makes them available to other components.",
+      "category": "Discovery",
+      "attributes": {
+        "role": {
+          "type": "string",
+          "description": "Kubernetes resource type to discover (pod, service, endpoints, etc.)",
+          "required": true
+        },
+        "namespaces": {
+          "type": "block",
+          "description": "Configures which namespaces to discover resources in"
+        }
+      }
+    },
+    "otelcol.receiver.otlp": {
+      "description": "Accepts telemetry data over the network using the OTLP protocol and forwards it to other OpenTelemetry components.",
+      "category": "OpenTelemetry Receivers",
+      "attributes": {
+        "grpc": {
+          "type": "block",
+          "description": "Configures OTLP over gRPC"
+        },
+        "http": {
+          "type": "block", 
+          "description": "Configures OTLP over HTTP"
+        },
+        "output": {
+          "type": "block",
+          "description": "Configures where to send received telemetry",
+          "required": true
+        }
+      }
+    },
+    "otelcol.exporter.otlp": {
+      "description": "Receives telemetry data from other OpenTelemetry components and exports it using the OTLP protocol.",
+      "category": "OpenTelemetry Exporters", 
+      "attributes": {
+        "client": {
+          "type": "block",
+          "description": "Configures the OTLP client",
+          "required": true
+        }
+      }
+    }
+  },
+  "functions": {
+    "env": {
+      "description": "Returns the value of an environment variable",
+      "parameters": [
+        {
+          "name": "var",
+          "type": "string",
+          "description": "Name of the environment variable"
+        }
+      ],
+      "returns": "string"
+    },
+    "concat": {
+      "description": "Concatenates multiple strings together",
+      "parameters": [
+        {
+          "name": "values",
+          "type": "...string",
+          "description": "String values to concatenate"
+        }
+      ],
+      "returns": "string"
+    },
+    "join": {
+      "description": "Joins array elements with a separator",
+      "parameters": [
+        {
+          "name": "separator",
+          "type": "string", 
+          "description": "String to use as separator"
+        },
+        {
+          "name": "array",
+          "type": "array",
+          "description": "Array to join"
+        }
+      ],
+      "returns": "string"
+    },
+    "format": {
+      "description": "Formats a string using Go-style formatting verbs",
+      "parameters": [
+        {
+          "name": "format",
+          "type": "string",
+          "description": "Format string with verbs like %s, %d, etc."
+        },
+        {
+          "name": "args",
+          "type": "...any",
+          "description": "Arguments to format"
+        }
+      ],
+      "returns": "string"
+    }
+  },
+  "attributes": {
+    "forward_to": {
+      "description": "List of receivers to forward data to. This creates a pipeline where data flows from one component to another.",
+      "type": "array",
+      "common": true
+    },
+    "targets": {
+      "description": "List of targets for the component to operate on. Format depends on the component type.",
+      "type": "array", 
+      "common": true
+    },
+    "labels": {
+      "description": "Static labels to add to all data processed by this component",
+      "type": "map",
+      "common": true
+    }
+  }
+}
